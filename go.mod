@@ -1,10 +1,10 @@
-module github.com/rridane/rr-ci
+module github.com/rridane/rridane-pipeyard-builder
 
 go 1.26.0
 
 require (
 	github.com/joho/godotenv v1.5.1
-	github.com/rridane/golang-pipeyard v0.2.1
+	github.com/rridane/golang-pipeyard v0.3.0
 )
 
 require (

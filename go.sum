@@ -169,8 +169,8 @@ github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRI
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
-github.com/rridane/golang-pipeyard v0.2.1 h1:4MHz0+r0Kge+8dgBcuu/XLqp7tLCTVZn54dWwUB/Nnw=
-github.com/rridane/golang-pipeyard v0.2.1/go.mod h1:y9XkyBXAV5oQlJq9Et6bsrnDVpRxEv9VtGCBQdNt6wA=
+github.com/rridane/golang-pipeyard v0.3.0 h1:20TlZ7e64TPnDuiw+V6FeIvhozewIkEOEsDz6KlU+x8=
+github.com/rridane/golang-pipeyard v0.3.0/go.mod h1:y9XkyBXAV5oQlJq9Et6bsrnDVpRxEv9VtGCBQdNt6wA=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/secure-systems-lab/go-securesystemslib v0.11.0 h1:iuCR9kcMFD4QurdKrGvPLoKZLv9YvwPYVr0473BdtFs=
 github.com/secure-systems-lab/go-securesystemslib v0.11.0/go.mod h1:+PMOTjUGwHj2vcZ+TFKlb1tXRbrdWE1LYDT5i9JC80Q=

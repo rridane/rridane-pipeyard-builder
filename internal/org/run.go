@@ -1,10 +1,4 @@
-// Command rr-ci is the pipeline every Python repository of this organisation
-// runs. Each stage is one invocation; the CI engine keeps the sequencing.
-//
-// A repository holds none of this. Its workflow downloads a pinned release and
-// calls the stages; what a stage reads about the project comes from the
-// project's own configuration, pyproject.toml and uv.lock.
-package main
+package org
 
 import (
 	"context"
@@ -16,36 +10,41 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/rridane/golang-pipeyard/pi"
 	"github.com/rridane/golang-pipeyard/x/inj/container"
+	"github.com/rridane/golang-pipeyard/x/inj/forge"
 	"github.com/rridane/golang-pipeyard/x/inj/otel"
 	"github.com/rridane/golang-pipeyard/x/inj/sys"
 	"github.com/rridane/golang-pipeyard/x/lay"
 )
 
-// version is set at build time with -ldflags "-X main.version=...".
-var version = "dev"
-
-const serviceName = "rr-ci"
-
-func main() {
+// Run wires one project's pipeline and runs the stage the command line names.
+// project is "owner/repo", fixed at compile time: it is what the release
+// stages talk to, whatever the environment says.
+// Every binary is given the same dependencies; a stage receives only those it
+// declares, so the GitHub client reaches nothing but the release stages.
+//
+// A binary carries no version: two builds of the same source have to be byte
+// for byte equal, and its release tag is what names it.
+func Run(name, project string, stages []pi.Stage) {
 	loadEnv()
 
 	endpoint, insecure := otlpTarget()
 	protocol := os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+	owner, repo, _ := strings.Cut(project, "/")
 
 	tracer := &otel.TracerInjector{
-		ServiceName:              serviceName,
+		ServiceName:              name,
 		OtelExporterOtlpEndpoint: endpoint,
 		Insecure:                 insecure,
 		Protocol:                 protocol,
 	}
 	meter := &otel.MeterInjector{
-		ServiceName:              serviceName,
+		ServiceName:              name,
 		OtelExporterOtlpEndpoint: endpoint,
 		Insecure:                 insecure,
 		Protocol:                 protocol,
 	}
 	logger := &otel.TelemetryLoggerInjector{
-		ServiceName:              serviceName,
+		ServiceName:              name,
 		EnableOtelExport:         endpoint != "",
 		OtelExporterOtlpEndpoint: endpoint,
 		OtelInsecure:             insecure,
@@ -53,11 +52,9 @@ func main() {
 	}
 
 	pipe := pi.NewPipeline(pi.PipelineConfig{
-		Name:             serviceName,
-		Version:          version,
-		ShortDescription: "The pipeline of rridane's Python repositories",
-		LongDescription: "Holds a repository to the organisation's rules, looks for secrets in its\n" +
-			"history, checks the Python and audits the locked dependencies.\n" +
+		Name:             name,
+		ShortDescription: "The pipeline of " + project,
+		LongDescription: "The pipeline of " + project + ", built from the Pipeyard catalogue.\n" +
 			"Each command is one stage; the CI engine calls them in order.",
 
 		Injectors: []any{
@@ -65,11 +62,16 @@ func main() {
 			&sys.IdentityInjector{},
 			&sys.ShellExecutorInjector{Timeout: 15 * time.Minute},
 			&container.ContainerBuilderInjector{},
+			&forge.GitHubReleaseInjector{
+				Token: os.Getenv("GITHUB_TOKEN"),
+				Owner: owner,
+				Repo:  repo,
+			},
 		},
 
 		Observer: &lay.StageObserver{
-			Tracer: tracer.Inject(serviceName),
-			Meter:  meter.Inject(serviceName),
+			Tracer: tracer.Inject(name),
+			Meter:  meter.Inject(name),
 			Logger: logger.Inject(""),
 			Shutdown: []func(context.Context){
 				tracer.Shutdown, meter.Shutdown, logger.Shutdown,
@@ -77,7 +79,7 @@ func main() {
 		},
 	})
 
-	for _, stage := range stages() {
+	for _, stage := range stages {
 		pipe.RegisterStage(stage)
 	}
 	pipe.Run(context.Background())

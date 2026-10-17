@@ -1,0 +1,98 @@
+name: rridane-pipeyard-builder
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A release that stopped halfway would leave a tag without its binary, so only
+# pull requests are cancelled by a newer run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+env:
+  PIPEYARD_PROJECT: ${{ github.repository }}
+  PIPEYARD_BRANCH: ${{ github.ref_name }}
+  PIPEYARD_COMMIT_SHA: ${{ github.sha }}
+  PIPEYARD_COMMIT_TIME: ${{ github.event.head_commit.timestamp }}
+  PIPEYARD_COMMIT_TITLE: ${{ github.event.head_commit.message }}
+
+jobs:
+  # This commit's pipeline checks this commit: a change to a stage is judged by
+  # the stage it produces.
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go build -o bin/ ./cmd/...
+
+      - name: Start BuildKit
+        run: |
+          docker run -d --name buildkit --privileged -p 127.0.0.1:1234:1234 moby/buildkit:v0.34.0 --addr tcp://0.0.0.0:1234
+          timeout 60 sh -c 'until docker logs buildkit 2>&1 | grep -q "running server"; do sleep 1; done'
+
+      - run: bin/rridane-pipeyard-builder-ci guard
+        env:
+          PIPEYARD_DENYLIST: ${{ secrets.PIPEYARD_DENYLIST }}
+      - run: bin/rridane-pipeyard-builder-ci secrets
+      - run: bin/rridane-pipeyard-builder-ci workflows
+      - run: bin/rridane-pipeyard-builder-ci build
+      - run: bin/rridane-pipeyard-builder-ci fmt
+      - run: bin/rridane-pipeyard-builder-ci vet
+      - run: bin/rridane-pipeyard-builder-ci test
+      - run: bin/rridane-pipeyard-builder-ci lint
+      - run: bin/rridane-pipeyard-builder-ci audit
+
+  # Every binary under cmd/ is rebuilt; those whose digest differs from their
+  # last release are attested, then released under their own tag.
+  release:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go build -o bin/ ./cmd/...
+
+      - name: Start BuildKit
+        run: |
+          docker run -d --name buildkit --privileged -p 127.0.0.1:1234:1234 moby/buildkit:v0.34.0 --addr tcp://0.0.0.0:1234
+          timeout 60 sh -c 'until docker logs buildkit 2>&1 | grep -q "running server"; do sleep 1; done'
+
+      - run: bin/rridane-pipeyard-builder-ci binaries
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - uses: actions/attest-build-provenance@v2
+        if: hashFiles('dist/*.sha256') != ''
+        with:
+          subject-checksums: dist/checksums.txt
+
+      - run: bin/rridane-pipeyard-builder-ci publish-binaries
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
