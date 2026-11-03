@@ -19,6 +19,7 @@ internal/org/          what every repository answers to
   run.go                 injectors and observer, the same for every binary
 cmd/
   otlp-replay-ci/        one binary per repository: the stages it runs
+  hune-lab-ci/
   rridane-pipeyard-builder-ci/
 ```
 
@@ -55,7 +56,16 @@ Every repository answers to the same three first:
 Then the repository's own checks. A Python project runs `lint` (ruff), `typecheck`
 (pyright), `architecture` (import-linter), `test` (pytest), `lock-check` and
 `audit` (OSV), with the tools at the versions its own lockfile pins. A Go
-module runs `build`, `fmt`, `vet`, `test`, `lint` and `audit`.
+module runs `build`, `fmt`, `vet`, `test`, `lint` and `audit`. A Node project
+runs the scripts of its own `package.json` — `check`, `test` — once `npm ci` has
+restored its lockfile, and `audit`.
+
+A repository that ships images builds them last, one `image` stage per
+Dockerfile target. Without `--push` the stage only checks that the image builds,
+which is what a pull request runs; on `main` the workflow adds `--push`, and the
+image is published under the commit SHA. The registry and its credentials come
+from the environment, never a flag: `PIPEYARD_REGISTRY_HOST`,
+`PIPEYARD_REGISTRY_USER` and `PIPEYARD_REGISTRY_TOKEN`.
 
 ## Releases
 
