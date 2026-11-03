@@ -14,6 +14,7 @@ import (
 	"github.com/rridane/golang-pipeyard/x/inj/otel"
 	"github.com/rridane/golang-pipeyard/x/inj/sys"
 	"github.com/rridane/golang-pipeyard/x/lay"
+	"github.com/rridane/golang-pipeyard/x/mod"
 )
 
 // Run wires one project's pipeline and runs the stage the command line names.
@@ -61,7 +62,7 @@ func Run(name, project string, stages []pi.Stage) {
 			logger,
 			&sys.IdentityInjector{},
 			&sys.ShellExecutorInjector{Timeout: 15 * time.Minute},
-			&container.ContainerBuilderInjector{},
+			&container.ContainerBuilderInjector{Registries: registries()},
 			&forge.GitHubReleaseInjector{
 				Token: os.Getenv("GITHUB_TOKEN"),
 				Owner: owner,
@@ -83,6 +84,27 @@ func Run(name, project string, stages []pi.Stage) {
 		pipe.RegisterStage(stage)
 	}
 	pipe.Run(context.Background())
+}
+
+// The registry an image stage pushes to is named in the environment, like its
+// credentials: the token stays out of the command line and the runner's logs.
+const (
+	registryHostEnv  = "PIPEYARD_REGISTRY_HOST"
+	registryUserEnv  = "PIPEYARD_REGISTRY_USER"
+	registryTokenEnv = "PIPEYARD_REGISTRY_TOKEN"
+)
+
+// registries authenticates the one registry the environment names. Without
+// one, the builder reads the machine's docker config, which is what a laptop
+// has after a docker login.
+func registries() map[string]mod.RegistryCredential {
+	host := os.Getenv(registryHostEnv)
+	if host == "" {
+		return nil
+	}
+	return map[string]mod.RegistryCredential{
+		host: {Username: os.Getenv(registryUserEnv), Password: os.Getenv(registryTokenEnv)},
+	}
 }
 
 // loadEnv reads a .env when there is one, so a laptop run picks up the same
